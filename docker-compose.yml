@@ -1,0 +1,16 @@
+version: '3.3'
+
+services:  
+    frontend:
+        image: corrykalam/ansible-frontend-example:dev
+        container_name: frontend-vue
+        ports:
+            - 8080:8080
+            - 80:80
+        environment:
+            - VUE_APP_BASE_URL=http://35.170.187.234/v1
+        
+networks:
+    default:
+        external:
+            name: backend_deploy
