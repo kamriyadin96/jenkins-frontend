@@ -7,64 +7,52 @@ pipeline {
 
     parameters {
         booleanParam(name: 'RUNTEST', defaultValue: true, description: 'Toggle this value from testing')
-        choice(name: 'Deploy', choices: ['Deploy Stagging', 'Deploy Deployment', 'Deploy Fullstack'], description: 'Pick something')
+        choice(name: 'CICD', choices: ['CI', 'CICD Server'], description: 'Pick something')
     }
 
     stages {
-        stage('Deploy on Deployment') {
-            when {
-                expression {
-                    params.CICD == 'Deploy Deployment' || BRANCH_NAME == 'dev'
-                }
-            }
+        stage('Build Docker Image') {
             steps {
                 script {
-                    sshPublisher(
-                        publishers: [
-                            sshPublisherDesc(
-                                configName: 'ansible-server',
-                                verbose: false,
-                                transfers: [
-                                    sshTransfer(
-                                        execCommand: 'cd ansible && ansible-playbook -i hosts deployment-frontend.yml',
-                                        execTimeout: 120000,
-                                    )
-                                ]
-                            )
-                        ]
-                    )
+                    CommitHash = sh (script : "git log -n 1 --pretty=format:'%H'", returnStdout: true)
+                    builderDocker = docker.build("kamriyadin/jenkins-frontend1:${CommitHash}")
                 }
             }
         }
-        stage('Deploy on stagging') {
+
+        stage('Run Testing') {
             when {
                 expression {
-                    params.CICD == 'Deploy Stagging' || BRANCH_NAME == 'stagging'
+                    params.RUNTEST
                 }
             }
             steps {
                 script {
-                    sshPublisher(
-                        publishers: [
-                            sshPublisherDesc(
-                                configName: 'ansible-server',
-                                verbose: false,
-                                transfers: [
-                                    sshTransfer(
-                                        execCommand: 'cd ansible && ansible-playbook -i hosts stagging-frontend.yml',
-                                        execTimeout: 120000,
-                                    )
-                                ]
-                            )
-                        ]
-                    )
+                    builderDocker.inside {
+                        sh 'echo passed'
+                    }
                 }
             }
         }
-        stage('Deploy on fullstack') {
+
+        stage('Push Image') {
             when {
                 expression {
-                    params.CICD == 'Deploy Fullstack' || BRANCH_NAME == 'main'
+                    params.RUNTEST
+                }
+            }
+            steps {
+                
+                script {
+                    builderDocker.push("${env.GIT_BRANCH}")
+                }
+            }
+        }
+
+        stage('Deploy on server') {
+            when {
+                expression {
+                    params.CICD == 'CICD Server' || BRANCH_NAME == 'main'
                 }
             }
             steps {
@@ -72,11 +60,13 @@ pipeline {
                     sshPublisher(
                         publishers: [
                             sshPublisherDesc(
-                                configName: 'ansible-server',
+                                configName: 'development-server',
                                 verbose: false,
                                 transfers: [
                                     sshTransfer(
-                                        execCommand: 'cd ansible && ansible-playbook -i hosts fullstack-frontend.yml',
+                                        sourceFiles: 'docker-compose.yml',
+                                        remoteDirectory: 'frontend',
+                                        execCommand: 'cd frontend && docker-compose down && docker-compose build --pull && docker-compose up -d',
                                         execTimeout: 120000,
                                     )
                                 ]
