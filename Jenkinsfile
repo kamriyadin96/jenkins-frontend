@@ -15,7 +15,7 @@ pipeline {
             steps {
                 script {
                     CommitHash = sh (script : "git log -n 1 --pretty=format:'%H'", returnStdout: true)
-                    builderDocker = docker.build("kamriyadin/jenkins-frontend1:${CommitHash}")
+                    builderDocker = docker.build("kamriyadin/jenkins-frontend:${CommitHash}")
                 }
             }
         }
